@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline DOE General Rule Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+:root{--primary:#2563eb;--primary-dark:#1d4ed8;--bg:#f5f7fb;--card:#fff;--line:#d8dee9;--text:#1f2937;--muted:#6b7280;--danger:#dc2626;--warn:#d97706;--ok:#16a34a}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;color:var(--text)}
+header{background:#fff;border-bottom:1px solid var(--line);padding:18px 28px} h1{margin:0;font-size:26px;font-weight:700} .sub{color:var(--muted);margin-top:6px;font-size:13px}
+.container{max-width:1500px;margin:20px auto;padding:0 18px}.grid{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+h2{font-size:17px;margin:0 0 12px}.hint{font-size:12px;color:var(--muted);line-height:1.5}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.stack{display:flex;flex-direction:column;gap:8px}
+input,select,textarea{border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:#fff;color:var(--text)} input[type=file]{width:100%} textarea{width:100%;min-height:90px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.small-input{width:90px}.team-input{width:130px}.alias-input{width:100px}
+button{border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:6px;padding:8px 11px;cursor:pointer;font-size:13px} button:hover{background:var(--primary-dark)} button.secondary{background:#fff;color:var(--primary)} button.danger{border-color:var(--danger);background:#fff;color:var(--danger)} button.mini{padding:4px 7px;font-size:12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px}.stat .num{font-size:24px;font-weight:700}.stat .label{font-size:12px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;background:#fff} th,td{border:1px solid var(--line);padding:8px;text-align:left;font-size:13px;vertical-align:top} th{background:#f1f5f9;font-weight:700;white-space:nowrap} .table-wrap{overflow:auto;max-height:650px;border:1px solid var(--line);border-radius:8px}.table-wrap table{border:0}.table-wrap th:first-child,.table-wrap td:first-child{border-left:0}.table-wrap th:last-child,.table-wrap td:last-child{border-right:0}
+.badge{display:inline-block;border-radius:99px;padding:2px 7px;font-size:12px}.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#92400e}.badge.gray{background:#e5e7eb;color:#374151}.rule{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:normal}.source{font-size:12px;color:#374151}.msg{padding:9px 10px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:13px;margin-top:8px}.warning{background:#fff7ed;color:#9a3412}.hidden{display:none}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:10}.modal{background:#fff;border-radius:10px;width:min(760px,92vw);padding:18px;border:1px solid var(--line)}.modal h2{margin-bottom:8px}.modal .footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.modal textarea{min-height:160px}.section-title{font-weight:700;margin:10px 0 6px;color:#111827}.preview{font-size:12px;color:var(--muted);margin-top:5px}.pill{border:1px solid var(--line);border-radius:999px;padding:3px 8px;background:#f9fafb;font-size:12px;margin:2px;display:inline-block}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Offline DOE General Rule Generator</h1>
+  <div class="sub">Foxconn Testing EPM · DOE Analysis · Online Rule Reference · Offline Lab Routing Rule Export</div>
+</header>
+<div class="container">
+  <div class="grid">
+    <aside>
+      <div class="card">
+        <h2>1. DOE Excel Upload</h2>
+        <input type="file" id="doeFile" accept=".xlsx,.xls,.csv" />
+        <div class="hint">Required columns: DOE Number, Team, DOE Title, Est. Lead Time, FATP Config, Test Target</div>
+        <div id="doeMsg" class="msg hidden"></div>
+      </div>
+      <div class="card">
+        <h2>2. Online Test Rule Upload</h2>
+        <input type="file" id="onlineFile" accept=".xlsx,.xls,.csv" />
+        <div class="hint">Required columns: Date, Config, Input Qty., Test Rule</div>
+        <div id="onlineMsg" class="msg hidden"></div>
+      </div>
+      <div class="card">
+        <h2>3. Team Management</h2>
+        <div class="row">
+          <input id="teamName" class="team-input" placeholder="Team, e.g. NFC" />
+          <input id="teamDesc" class="team-input" placeholder="Description" />
+          <button id="addTeam">Add</button>
+        </div>
+        <div class="hint">维护 Offline Team。Rule 中不存在的 Team 会被提示。</div>
+        <div class="table-wrap" style="max-height:190px;margin-top:10px"><table id="teamTable"><thead><tr><th>Team</th><th>Description</th><th>Operation</th></tr></thead><tbody></tbody></table></div>
+        <div class="section-title">Alias</div>
+        <div class="row">
+          <input id="aliasName" class="alias-input" placeholder="Alias" />
+          <select id="aliasTeam" class="team-input"></select>
+          <button id="addAlias">Add</button>
+        </div>
+        <div class="table-wrap" style="max-height:160px;margin-top:10px"><table id="aliasTable"><thead><tr><th>Alias</th><th>Team</th><th>Operation</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>4. Priority Table</h2>
+        <div class="row">
+          <select id="priorityTeam" class="team-input"></select>
+          <input id="priorityValue" type="number" class="small-input" placeholder="Priority" />
+          <button id="addPriority">Add</button>
+        </div>
+        <div class="hint">数值越小，排序越靠前。Online Rule 指定 Offline(Team) 时优先级高于此表。</div>
+        <div class="table-wrap" style="max-height:210px;margin-top:10px"><table id="priorityTable"><thead><tr><th>Team</th><th>Priority</th><th>Operation</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>5. Generate / Export</h2>
+        <div class="toolbar">
+          <button id="generateBtn">Generate Rule</button>
+          <button id="exportBtn" class="secondary">Export Excel</button>
+          <button id="clearBtn" class="danger">Clear All</button>
+        </div>
+        <div class="hint">重新 Generate 时，已手动编辑过的 Rule 会保留，不会被覆盖。</div>
+        <div id="genMsg" class="msg hidden"></div>
+      </div>
+    </aside>
+    <main>
+      <div class="stats">
+        <div class="stat"><div class="num" id="doeCount">0</div><div class="label">DOE Rows</div></div>
+        <div class="stat"><div class="num" id="onlineCount">0</div><div class="label">Online Rule Rows</div></div>
+        <div class="stat"><div class="num" id="ruleCount">0</div><div class="label">Generated Rules</div></div>
+        <div class="stat"><div class="num" id="warningCount">0</div><div class="label">Warnings</div></div>
+      </div>
+      <div class="card">
+        <h2>Offline Test Rule Management</h2>
+        <div class="toolbar">
+          <input id="searchBox" placeholder="Search Config / Rule / DOE" style="min-width:260px" />
+          <button id="copyText" class="secondary">Copy Rule Text</button>
+        </div>
+        <div class="table-wrap">
+          <table id="ruleTable">
+            <thead><tr><th>Operation</th><th>Config</th><th>Input Date</th><th>Input Qty.</th><th>Routing Rule</th><th>Source DOE</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Warnings / Parser Notes</h2>
+        <div id="warnings" class="hint">No warnings.</div>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2>Edit Routing Rule</h2>
+    <div class="hint" id="editMeta"></div>
+    <textarea id="editRule"></textarea>
+    <div class="preview">Format example: NFC[25] -> Camera[25]</div>
+    <div class="footer"><button class="secondary" id="cancelEdit">Cancel</button><button id="saveEdit">Save</button></div>
+  </div>
+</div>
+<script>
+const state={doe:[],online:[],teams:[],aliases:{},priority:{},rules:[],manual:{},warnings:[]};
+const $=id=>document.getElementById(id);
+function norm(s){return String(s??'').trim();}
+function key(s){return norm(s).toLowerCase().replace(/[\s._-]+/g,'');}
+function num(v){if(v===null||v===undefined||v==='')return 0; const m=String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/); return m?Number(m[0]):0;}
+function showMsg(id,text,warn=false){const el=$(id);el.textContent=text;el.className='msg'+(warn?' warning':'');el.classList.remove('hidden');}
+function findCol(row,names){const ks=Object.keys(row||{}); for(const n of names){const target=key(n); const found=ks.find(k=>key(k)===target || key(k).includes(target)); if(found) return found;} return null;}
+function parseDate(v){if(v instanceof Date) return v.toISOString().slice(0,10); if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v); if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;} const s=norm(v); if(!s) return ''; const d=new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10); return s;}
+async function readFile(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}); const ws=wb.Sheets[wb.SheetNames[0]]; res(XLSX.utils.sheet_to_json(ws,{defval:''}));}catch(err){rej(err)}};r.onerror=rej;r.readAsArrayBuffer(file);});}
+$('doeFile').addEventListener('change',async e=>{const f=e.target.files[0]; if(!f)return; try{const rows=await readFile(f); state.doe=rows.map(r=>{const c={doe:findCol(r,['DOE Number','DOE']),team:findCol(r,['Team']),title:findCol(r,['DOE Title','Title']),lead:findCol(r,['Est. Lead Time','Lead Time']),config:findCol(r,['FATP Config','Config']),target:findCol(r,['Test Target','Target'])}; return {doe:norm(r[c.doe]),team:mapTeam(r[c.team]),title:norm(r[c.title]),lead:norm(r[c.lead]),config:norm(r[c.config]),target:num(r[c.target]),raw:r};}).filter(x=>x.config||x.team||x.doe); showMsg('doeMsg',`Loaded ${state.doe.length} DOE rows.`); autoAddTeams(state.doe.map(x=>x.team)); renderAll();}catch(err){showMsg('doeMsg','Failed to read DOE file: '+err.message,true)}});
+$('onlineFile').addEventListener('change',async e=>{const f=e.target.files[0]; if(!f)return; try{const rows=await readFile(f); state.online=rows.map(r=>{const c={date:findCol(r,['Date','Input Date']),config:findCol(r,['Config']),qty:findCol(r,['Input Qty.','Input Qty','Quantity']),rule:findCol(r,['Test Rule','Rule','Routing Rule'])}; return {date:parseDate(r[c.date]),config:norm(r[c.config]),inputQty:num(r[c.qty]),testRule:norm(r[c.rule]),raw:r};}).filter(x=>x.config||x.testRule); showMsg('onlineMsg',`Loaded ${state.online.length} Online Rule rows.`); renderAll();}catch(err){showMsg('onlineMsg','Failed to read Online Rule file: '+err.message,true)}});
+function autoAddTeams(arr){arr.filter(Boolean).forEach(t=>{if(!state.teams.find(x=>key(x.team)===key(t))) state.teams.push({team:t,desc:''});});}
+function mapTeam(t){const s=norm(t); return state.aliases[key(s)] || s;}
+function teamExists(t){return state.teams.some(x=>key(x.team)===key(t));}
+function addTeam(){const t=norm($('teamName').value); if(!t)return; const old=state.teams.find(x=>key(x.team)===key(t)); if(old){old.desc=norm($('teamDesc').value)} else state.teams.push({team:t,desc:norm($('teamDesc').value)}); $('teamName').value='';$('teamDesc').value=''; renderAll();}
+$('addTeam').onclick=addTeam;
+$('addAlias').onclick=()=>{const a=norm($('aliasName').value), t=$('aliasTeam').value; if(a&&t) state.aliases[key(a)]=t; $('aliasName').value=''; renderAll();};
+$('addPriority').onclick=()=>{const t=$('priorityTeam').value, p=num($('priorityValue').value); if(t) state.priority[t]=p; $('priorityValue').value=''; renderAll();};
+function renderTeams(){const tb=$('teamTable').querySelector('tbody'); tb.innerHTML=''; state.teams.forEach((x,i)=>{tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(x.team)}</td><td>${esc(x.desc)}</td><td><button class="mini secondary" onclick="editTeam(${i})">Edit</button> <button class="mini danger" onclick="delTeam(${i})">Delete</button></td></tr>`)}); const opts=state.teams.map(x=>`<option>${esc(x.team)}</option>`).join(''); $('aliasTeam').innerHTML=opts; $('priorityTeam').innerHTML=opts;}
+window.editTeam=i=>{const n=prompt('Team name',state.teams[i].team); if(n===null)return; const d=prompt('Description',state.teams[i].desc)||''; state.teams[i]={team:n,desc:d}; renderAll();};
+window.delTeam=i=>{if(confirm('Delete this team?')){delete state.priority[state.teams[i].team]; state.teams.splice(i,1); renderAll();}};
+function renderAlias(){const tb=$('aliasTable').querySelector('tbody'); tb.innerHTML=''; Object.entries(state.aliases).forEach(([a,t])=>tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(a)}</td><td>${esc(t)}</td><td><button class="mini danger" onclick="delAlias('${a}')">Delete</button></td></tr>`));}
+window.delAlias=a=>{delete state.aliases[a]; renderAll();};
+function renderPriority(){const tb=$('priorityTable').querySelector('tbody'); tb.innerHTML=''; Object.entries(state.priority).sort((a,b)=>a[1]-b[1]).forEach(([t,p])=>tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(t)}</td><td>${p}</td><td><button class="mini danger" onclick="delPriority('${escAttr(t)}')">Delete</button></td></tr>`));}
+window.delPriority=t=>{delete state.priority[t]; renderAll();};
+function parseOnlineSegments(rule){const text=norm(rule).replace(/：/g,':').replace(/（/g,'(').replace(/）/g,')'); const parts=text.split(/\n+|(?=\d+(?:\.\d+)?\s*x\s*:)/i).map(x=>x.trim()).filter(Boolean); const result=[]; const re=/(\d+(?:\.\d+)?)\s*x\s*:\s*([\s\S]*?)(?=\d+(?:\.\d+)?\s*x\s*:|$)/gi; let m; while((m=re.exec(text))!==null){result.push({qty:Number(m[1]),path:m[2].trim()});}
+ if(result.length) return result; return parts.map(p=>{const m=p.match(/(\d+(?:\.\d+)?)\s*x\s*:\s*([\s\S]*)/i); return m?{qty:Number(m[1]),path:m[2].trim()}:{qty:0,path:p};});}
+function offlineInfo(path){const p=path.replace(/：/g,':').replace(/（/g,'(').replace(/）/g,')'); if(!/offline/i.test(p)) return null; const teams=[]; const re=/offline\s*\(([^)]*)\)/ig; let m; while((m=re.exec(p))!==null){m[1].split(/[,，;；\/]+/).map(x=>mapTeam(x.trim())).filter(Boolean).forEach(t=>teams.push(t));} return {teams};}
+function generateRules(){state.warnings=[]; const doeByConfig={}; state.doe.forEach(d=>{if(!d.config) return; const cfg=d.config; if(!doeByConfig[cfg]) doeByConfig[cfg]=[]; doeByConfig[cfg].push(d); if(d.team&&!teamExists(d.team)) state.warnings.push(`Team not found in Team Management: ${d.team} / Config ${cfg}`);});
+ const newRules=[]; state.online.forEach(o=>{if(!o.config)return; const segments=parseOnlineSegments(o.testRule); let hasOffline=false; const teamMap={}; const sourceDoes=new Set(); const forcedOrder=[];
+  function add(team,qty,sourceDOE,forced){team=mapTeam(team); if(!team)return; if(!teamExists(team)) state.warnings.push(`Team not found in Team Management: ${team} / Config ${o.config}`); if(!teamMap[team]) teamMap[team]={team,qty:0,forced:false}; teamMap[team].qty+=qty; if(forced&&!teamMap[team].forced) forcedOrder.push(team); teamMap[team].forced=teamMap[team].forced||forced; if(sourceDOE) sourceDoes.add(sourceDOE);}
+  segments.forEach(seg=>{const info=offlineInfo(seg.path); if(!info)return; hasOffline=true; if(info.teams.length){info.teams.forEach(t=>add(t,seg.qty,null,true));}});
+  if(!hasOffline) return;
+  const doeRows=doeByConfig[o.config]||[];
+  doeRows.forEach(d=>{add(d.team,d.target,d.doe,false);});
+  if(!Object.keys(teamMap).length) return;
+  const teams=Object.values(teamMap).sort((a,b)=>{const af=a.forced?0:1,bf=b.forced?0:1; if(af!==bf)return af-bf; if(a.forced&&b.forced) return forcedOrder.indexOf(a.team)-forcedOrder.indexOf(b.team); return (state.priority[a.team]??9999)-(state.priority[b.team]??9999)||a.team.localeCompare(b.team);});
+  const routing=teams.map(x=>`${x.team}[${cleanQty(x.qty)}]`).join(' -> ');
+  const id=o.config; const existing=state.manual[id]; if(existing){newRules.push({...existing});} else newRules.push({id,operation:'',config:o.config,inputDate:o.date,inputQty:o.inputQty,routingRule:routing,sourceDOE:[...sourceDoes].filter(Boolean).join(', '),status:'Generated',originalRule:routing});
+ });
+ const seen={}; state.rules=[]; newRules.forEach(r=>{ if(!seen[r.config]){seen[r.config]=r; state.rules.push(r);} else state.warnings.push(`Duplicate Online Config found and ignored after first generated rule: ${r.config}`); });
+ renderAll(); showMsg('genMsg',`Generated ${state.rules.length} Offline Test Rules.`+(state.warnings.length?` ${state.warnings.length} warning(s).`:''),!!state.warnings.length);
+}
+function cleanQty(q){return Number.isInteger(q)?q:String(q.toFixed(2)).replace(/\.00$/,'');}
+$('generateBtn').onclick=generateRules;
+function renderRules(){const q=key($('searchBox').value); const tb=$('ruleTable').querySelector('tbody'); tb.innerHTML=''; state.rules.filter(r=>!q||key(JSON.stringify(r)).includes(q)).forEach((r,i)=>{tb.insertAdjacentHTML('beforeend',`<tr><td><button class="mini secondary" onclick="openEdit(${i})">Edit</button> <button class="mini danger" onclick="deleteRule(${i})">Delete</button></td><td>${esc(r.config)}</td><td>${esc(r.inputDate)}</td><td>${esc(r.inputQty)}</td><td class="rule">${esc(r.routingRule)}</td><td class="source">${esc(r.sourceDOE)}</td><td>${badge(r.status)}</td></tr>`)});}
+function badge(s){const c=s==='Manual Edited'?'warn':(s==='Generated'?'ok':'gray'); return `<span class="badge ${c}">${esc(s)}</span>`;}
+window.openEdit=i=>{window.editIndex=i; const r=state.rules[i]; $('editMeta').textContent=`Config: ${r.config} | Input Date: ${r.inputDate} | Input Qty: ${r.inputQty}`; $('editRule').value=r.routingRule; $('modalBg').style.display='flex';};
+$('cancelEdit').onclick=()=>$('modalBg').style.display='none';
+$('saveEdit').onclick=()=>{const i=window.editIndex; const r=state.rules[i]; r.routingRule=norm($('editRule').value); r.status='Manual Edited'; state.manual[r.config]={...r}; $('modalBg').style.display='none'; renderAll();};
+window.deleteRule=i=>{if(confirm('Delete this rule?')){const cfg=state.rules[i].config; state.rules.splice(i,1); delete state.manual[cfg]; renderAll();}};
+$('searchBox').oninput=renderRules;
+$('copyText').onclick=async()=>{const text=state.rules.map(r=>`${r.config} : ${r.routingRule}`).join('\n'); await navigator.clipboard.writeText(text); alert('Rule text copied.');};
+$('exportBtn').onclick=()=>{if(!state.rules.length){alert('No rules to export.');return;} const rows=state.rules.map(r=>({'Operation':'Edit / Delete','Config':r.config,'Input Date':r.inputDate,'Input Quantity':r.inputQty,'Routing Rule':r.routingRule,'Source DOE':r.sourceDOE})); const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Offline Rule'); XLSX.writeFile(wb,'Offline_DOE_General_Rule.xlsx');};
+$('clearBtn').onclick=()=>{if(confirm('Clear all uploaded data and generated rules?')){state.doe=[];state.online=[];state.rules=[];state.manual={};state.warnings=[];renderAll();}};
+function renderWarnings(){const el=$('warnings'); if(!state.warnings.length){el.textContent='No warnings.';return;} el.innerHTML=state.warnings.map(w=>`<div class="pill">⚠ ${esc(w)}</div>`).join('');}
+function renderStats(){$('doeCount').textContent=state.doe.length;$('onlineCount').textContent=state.online.length;$('ruleCount').textContent=state.rules.length;$('warningCount').textContent=state.warnings.length;}
+function renderAll(){renderTeams();renderAlias();renderPriority();renderRules();renderWarnings();renderStats();}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function escAttr(s){return String(s??'').replace(/'/g,"&#39;").replace(/"/g,'&quot;');}
+['Camera','NFC','WLAN','Audio','BT','GPS'].forEach((t,i)=>{state.teams.push({team:t,desc:t+' Team'}); state.priority[t]=(i+1)*10;});
+state.aliases[key('WiFi')]='WLAN'; state.aliases[key('Wireless')]='WLAN'; renderAll();
+</script>
+</body>
+</html>
