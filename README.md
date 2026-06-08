@@ -23,7 +23,7 @@ offline-doe-rule-generator
 After enabling GitHub Pages, the URL will look like:
 
 ```text
-https://your-company.github.io/offline-doe-rule-generator/
+https://lynch.github.io/offline-doe-rule-generator/
 ```
 
 ## Input files
